@@ -1,0 +1,13 @@
+{
+	"files.associations": {
+		"*.fn": "java",
+		"00_Preface": "markdown",
+		"*.tivm": "javascript",
+		"usart.h": "c",
+		"rcc.h": "c",
+		"common.h": "c",
+		"usart_common_f124.h": "c",
+		"memorymap.h": "c",
+		"task.h": "c"
+	}
+}
