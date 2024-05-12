@@ -1,9 +1,12 @@
 #include "FreeRTOS.h"
 #include "task.h"
+#include "queue.h"
 
 #include "libopencm3/stm32/rcc.h"
 #include "libopencm3/stm32/gpio.h"
 #include "libopencm3/stm32/usart.h"
+
+static QueueHandle_t uart_txq;
 
 static void
 uart_setup(void)
@@ -25,31 +28,44 @@ uart_setup(void)
 	usart_set_parity(USART1, USART_PARITY_NONE);
 	usart_set_flow_control(USART1, USART_FLOWCONTROL_NONE);
 	usart_enable(USART1);
-}
 
-static inline void
-uart_putc(char ch)
-{
-	usart_send_blocking(USART1, ch);
+	uart_txq = xQueueCreate(256, sizeof(char));
 }
 
 static void
-task1(void* args __attribute__((unused)))
+uart_task(void* args __attribute__((unused)))
 {
-	int c = '0' - 1;
+	char ch;
 
 	for (;;) {
-		gpio_toggle(GPIOC, GPIO13);
-		vTaskDelay(pdMS_TO_TICKS(200));
-
-		if (++c >= 'Z') {
-			uart_putc(c);
-			uart_putc('\r');
-			uart_putc('\n');
-			c = '0' - 1;
-		} else {
-			uart_putc(c);
+		// Receive a char to be transmitted
+		if (xQueueReceive(uart_txq, &ch, 500) == pdPASS) {
+			
+			while (!usart_get_flag(USART1, USART_SR_TXE))
+				taskYIELD();
+			
+			usart_send(USART1, ch);
 		}
+
+		gpio_toggle(GPIOC, GPIO13);
+	}
+}
+
+static void
+uart_puts(const char* str)
+{
+	for ( ; *str; ++str) {
+		xQueueSend(uart_txq, str, portMAX_DELAY);
+	}
+}
+
+static void
+demo_task(void* args __attribute__((unused)))
+{
+	for (;;) {
+		uart_puts("Now this is a message..\n\r");
+		uart_puts("  sent via FreeRTOS queues.\n\n\r");
+		vTaskDelay(pdMS_TO_TICKS(1000));
 	}
 }
 
@@ -68,7 +84,8 @@ main(void)
 
 	uart_setup();
 	
-	xTaskCreate(task1, "task1", 100, NULL, configMAX_PRIORITIES - 1, NULL);
+	xTaskCreate(uart_task, "task1", 100, NULL, configMAX_PRIORITIES - 1, NULL);
+	xTaskCreate(demo_task, "task1", 100, NULL, configMAX_PRIORITIES - 1, NULL);
 	vTaskStartScheduler();
 
 	for (;;);

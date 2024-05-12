@@ -6,7 +6,7 @@ add_executable(${PROJECT_NAME}.elf
 	${rtos_sources}/list.c
 	${rtos_portable}/port.c
 	${rtos_sources}/portable/MemMang/heap_4.c
-	# ${rtos_sources}/queue.c
+	${rtos_sources}/queue.c
 	${hal_src_stm32_cmn}/usart_common_all.c
 	${hal_src_stm32_cmn}/usart_common_f124.c
 	${hal_src_stm32_f1}/rcc.c

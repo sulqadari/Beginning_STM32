@@ -8,6 +8,7 @@
 		"common.h": "c",
 		"usart_common_f124.h": "c",
 		"memorymap.h": "c",
-		"task.h": "c"
+		"task.h": "c",
+		"usart_common_all.h": "c"
 	}
 }
