@@ -8,11 +8,11 @@ add_executable(${PROJECT_NAME}.elf
 	${rtos_sources}/portable/MemMang/heap_4.c
 	# ${rtos_sources}/queue.c
 	${hal_src_stm32_cmn}/usart_common_all.c
-	${hal_src_stm32_cmn}/rcc_common_all.c
-	${hal_src_stm32_f1}/rcc.c
-	${hal_src_stm32_cmn}/gpio_common_all.c
-	${hal_src_stm32_f1}/gpio.c
 	${hal_src_stm32_cmn}/usart_common_f124.c
+	${hal_src_stm32_f1}/rcc.c
+	${hal_src_stm32_cmn}/rcc_common_all.c
+	${hal_src_stm32_f1}/gpio.c
+	${hal_src_stm32_cmn}/gpio_common_all.c
 	${hal_src_stm32_cmn}/flash_common_all.c
 )
 

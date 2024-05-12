@@ -18,7 +18,7 @@ uart_setup(void)
 		GPIO_USART1_TX
 	);
 
-	usart_set_baudrate(USART1, 9600);
+	usart_set_baudrate(USART1, 38400);
 	usart_set_databits(USART1, 8);
 	usart_set_stopbits(USART1, USART_STOPBITS_1);
 	usart_set_mode(USART1, USART_MODE_TX);
@@ -40,7 +40,7 @@ task1(void* args __attribute__((unused)))
 
 	for (;;) {
 		gpio_toggle(GPIOC, GPIO13);
-		vTaskDelay(pdMS_TO_TICKS(2500));
+		vTaskDelay(pdMS_TO_TICKS(200));
 
 		if (++c >= 'Z') {
 			uart_putc(c);

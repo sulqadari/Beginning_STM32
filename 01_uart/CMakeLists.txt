@@ -27,16 +27,18 @@ add_compile_definitions(
 	STM32F103xB STM32F1
 )
 
+#-mapcs-frame -msoft-float
+# -fno-hosted -fno-builtin
 add_compile_options(
 	-Wall -O1 -std=gnu11
-	-mcpu=cortex-m3 -mthumb -mtune=cortex-m3 -mapcs-frame -msoft-float
-	-fdata-sections -ffunction-sections -fno-hosted -fno-builtin
+	-mcpu=cortex-m3 -mthumb -mtune=cortex-m3 
+	-fdata-sections -ffunction-sections
 )
 
 add_link_options(
 	-Wall -O1 -std=gnu11
-	-mcpu=cortex-m3 -mthumb -mtune=cortex-m3 -mapcs-frame -msoft-float
-	-fdata-sections -ffunction-sections -fno-hosted -fno-builtin
+	-mcpu=cortex-m3 -mthumb -mtune=cortex-m3
+	-fdata-sections -ffunction-sections
 	
 	"LINKER:--gc-sections"
 	"LINKER:-T,${CMAKE_SOURCE_DIR}/src/STM32F103XB_FLASH.ld"
