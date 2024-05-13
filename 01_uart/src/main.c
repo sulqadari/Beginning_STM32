@@ -1,3 +1,6 @@
+#include <memory.h>
+#include <stdlib.h>
+
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
@@ -5,7 +8,7 @@
 #include "libopencm3/stm32/rcc.h"
 #include "libopencm3/stm32/gpio.h"
 #include "libopencm3/stm32/usart.h"
-#include <libopencm3/cm3/nvic.h>
+#include "libopencm3/cm3/nvic.h"
 
 #define USART_BUF_DEPTH 32
 
@@ -22,6 +25,13 @@ typedef struct {
 	int32_t (*getc)(void);
 	void (*putc)(char ch);
 } uart_info_t;
+
+static int32_t uart1_getc(void);
+static int32_t uart2_getc(void);
+static int32_t uart3_getc(void);
+static void uart1_putc(char ch);
+static void uart2_putc(char ch);
+static void uart3_putc(char ch);
 
 static uart_info_t uarts[3] = {
 	{ USART1, RCC_USART1, NVIC_USART1_IRQ, uart1_getc, uart1_putc },
@@ -119,94 +129,6 @@ uart3_putc(char ch)
 	putc_uart(3, ch);
 }
 
-/*
-
-static void
-uart_setup(void)
-{
-	rcc_periph_clock_enable(RCC_GPIOA);
-	rcc_periph_clock_enable(RCC_USART1);
-
-	gpio_set_mode(
-		GPIOA,
-		GPIO_MODE_OUTPUT_50_MHZ,
-		GPIO_CNF_OUTPUT_ALTFN_PUSHPULL,
-		GPIO_USART1_TX
-	);
-
-	usart_set_baudrate(USART1, 38400);
-	usart_set_databits(USART1, 8);
-	usart_set_stopbits(USART1, USART_STOPBITS_1);
-	usart_set_mode(USART1, USART_MODE_TX);
-	usart_set_parity(USART1, USART_PARITY_NONE);
-	usart_set_flow_control(USART1, USART_FLOWCONTROL_NONE);
-	usart_enable(USART1);
-
-	uart_txq = xQueueCreate(256, sizeof(char));
-}
-
-static void
-uart_task(void* args __attribute__((unused)))
-{
-	char ch;
-
-	for (;;) {
-		// Receive a char to be transmitted
-		if (xQueueReceive(uart_txq, &ch, 500) == pdPASS) {
-			
-			while (!usart_get_flag(USART1, USART_SR_TXE))
-				taskYIELD();
-			
-			usart_send(USART1, ch);
-		}
-
-		gpio_toggle(GPIOC, GPIO13);
-	}
-}
-
-static void
-uart_puts(const char* str)
-{
-	for ( ; *str; ++str) {
-		xQueueSend(uart_txq, str, portMAX_DELAY);
-	}
-}
-
-static void
-demo_task(void* args __attribute__((unused)))
-{
-	for (;;) {
-		uart_puts("Now this is a message..\n\r");
-		uart_puts("  sent via FreeRTOS queues.\n\n\r");
-		vTaskDelay(pdMS_TO_TICKS(1000));
-	}
-}
-
-int
-main(void)
-{
-	rcc_clock_setup_pll(&rcc_hse_configs[RCC_CLOCK_HSE8_72MHZ]);
-	rcc_periph_clock_enable(RCC_GPIOC);
-	
-	gpio_set_mode(
-		GPIOC,
-		GPIO_MODE_OUTPUT_2_MHZ,
-		GPIO_CNF_OUTPUT_PUSHPULL,
-		GPIO13
-	);
-
-	uart_setup();
-	
-	xTaskCreate(uart_task, "uart_task", 32, NULL, configMAX_PRIORITIES - 1, NULL);
-	xTaskCreate(demo_task, "demo_task", 32, NULL, configMAX_PRIORITIES - 1, NULL);
-	vTaskStartScheduler();
-
-	for (;;);
-
-	return (0);
-}
-*/
-
 static void
 gpio_setup(void)
 {
@@ -258,16 +180,94 @@ open_uart(uint32_t uartno, uint32_t baud,
 	if (uartno < 1 || uartno > 3)
 		return (-1);
 	
-	info = &uarts[ux = uartno - 1];
-	uart = info->usart;
+	info = &uarts[ux = uartno - 1];	// USART params
+	uart = info->usart;				// USART address
 	usart_disable_rx_interrupt(uart);
+
+	// Parity
+	switch (cfg[1]) {
+		case 'O': parity = USART_PARITY_ODD; break;
+		case 'E': parity = USART_PARITY_EVEN; break;
+		case 'N': parity = USART_PARITY_NONE; break;
+		default: return (-2);
+	}
+
+	// Stop bits
+	stopb = USART_STOPBITS_1;
+	switch (cfg[2]) {
+		case '.':
+		case '0':
+			stopb = USART_STOPBITS_0_5;
+		break;
+		case '1':
+			if (cfg[3] == '.')
+				stopb = USART_STOPBITS_1_5;
+			else
+				stopb = USART_STOPBITS_1;
+		case '2':
+			stopb = USART_STOPBITS_2;
+		break;
+		default: return (-3);
+	}
+
+	// Transmit mode: "r", "w" or "rw"
+	if (mode[0] == 'r' && mode[1] == 'w') {
+		iomode = USART_MODE_TX_RX;
+		rxintf = true;
+	} else if (mode[0] == 'r') {
+		iomode = USART_MODE_RX;
+		rxintf = true;
+	} else if (mode[0] == 'w') {
+		iomode = USART_MODE_TX;
+	} else
+		return (-4);
+	
+	// Setup RX ISR
+	if (rxintf) {
+		if (uart_data[ux] == 0)
+			uart_data[ux] = malloc(sizeof(uart_t));
+		
+		if (NULL == uart_data[ux])
+			return (-5);
+		
+		uart_data[ux]->head = uart_data[ux]->tail = 0;
+	}
+
+	// Flow control mode
+	fc = USART_FLOWCONTROL_NONE;
+	if (rts) {
+		if (cts)
+			fc = USART_FLOWCONTROL_RTS_CTS;
+		else
+			fc = USART_FLOWCONTROL_RTS;
+	} else if (cts)
+		fc = USART_FLOWCONTROL_CTS;
+	
+	// Establish settings
+
+	rcc_periph_clock_enable(info->rcc);
+	usart_set_baudrate(uart, baud);
+	usart_set_databits(uart, cfg[0] & 0x0F);
+	usart_set_stopbits(uart, stopb);
+	usart_set_mode(uart, iomode);
+	usart_set_parity(uart, parity);
+	usart_set_flow_control(uart, fc);
+
+	nvic_enable_irq(info->irq);
+	usart_enable(uart);
+	usart_enable_rx_interrupt(uart);
+
+	return (0);
 }
 
-static void
+static int8_t
 uart_setup(void)
 {
-	open_uart(1, 115200, "8N1", "rw", 1, 1);
+	if (open_uart(1, 115200, "8N1", "rw", 1, 1) != 0)
+		return (-1);
+	
 	uart_txq = xQueueCreate(256, sizeof(char));
+	return (0);
 }
 
 static void
@@ -315,24 +315,67 @@ getline(char* buf, uint32_t bufsize, int32_t (*get)(void), void (*put)(char ch))
 				
 				for ( ; bufx > 0; --bufx)
 					put('\b');
-				
 				for ( ; bufx < buflen; ++bufx)
 					put(' ');
-				
 				buflen = 0;
 			// Fall through
 			case CONTROL('A'):	// begin line
 				for ( ; bufx > 0; --bufx)
-					put('b');
+					put('\b');
 			break;
+			case CONTROL('B'):	// backward char
+				if (bufx > 0) {
+					--bufx;
+					put('\b');
+				}
+			break;
+			case CONTROL('F'):	// forward char
+				if (bufx < bufsize && bufx < buflen)
+					put(buf[++bufx]);
+			break;
+			case CONTROL('E'):	// end line
+				for ( ; bufx < buflen; ++bufx)
+					put(buf[bufx]);
+			break;
+			case CONTROL('H'):	// backspace char
+			case 0x7F:			// rub out
+				if (bufx <= 0)
+					break;
+				--bufx;
+				put('\b');
+			// fall through
+			case CONTROL('D'):	// delete char
+				if (bufx < buflen) {
+					memmove((buf + bufx), (buf + bufx + 1), (buflen - bufx - 1));
+					--buflen;
+
+					for (uint32_t x = bufx; x < buflen; ++x)
+						put(buf[x]);
+					put(' ');
+					for (uint32_t x = buflen + 1; x > bufx; --x)
+						put('\b');
+				}
+			break;
+			case CONTROL('I'):	// insert chars (TAB)
+				if ((bufx < buflen) && ((buflen + 1) < bufsize)) {
+					memmove((buf + bufx + 1), (buf + bufx), (buflen - bufx));
+					buf[bufx] = ' ';
+					++buflen;
+					put(' ');
+
+					for (uint32_t x = bufx + 1; x < buflen; ++x)
+						put(buf[x]);
+					for (uint32_t x = bufx; x < buflen; ++x)
+						put('\b');
+				}
 			case '\r':
 			case '\n':			// end line
 				ch = '\n';
 			break;
-			default:
+			default:			// overtype
 				if (bufx >= bufsize) {
-					put(0x07);
-					continue;
+					put(0x07);	// bell
+					continue;	// no room left
 				}
 
 				buf[bufx++] = ch;
@@ -367,33 +410,71 @@ uart_task(void* args __attribute__((unused)))
 	puts_uart(1, "\n\ruart_task() has begun:\n\r");
 
 	for (;;) {
-		if ((gc == getc_uart_nb(1)) != -1) {
+		if ((gc = getc_uart_nb(1)) != -1) {
 			puts_uart(1, "\r\nENTER INPUT: ");
 
 			ch = (char)gc;
 			if (ch != '\r' && ch != '\n') {
 				kbuf[0] = ch;
 				putc_uart(1, ch);
-				getline_uart(1, kbuf + 1, sizeof (kbuf - 1));
+				getline_uart(1, (kbuf + 1), sizeof (kbuf - 1));
+			} else {
+				// read the entire line.
+				getline_uart(1, kbuf, sizeof(kbuf));
 			}
 		}
+
+		// Receive a char to be transmitted.
+		if (xQueueReceive(uart_txq, &ch, 10) == pdPASS)
+			putc_uart(1, ch);
+		
+		gpio_toggle(GPIOC, GPIO13);
 	}
+}
+
+static inline void
+uart_puts(const char* str)
+{
+	for ( ; *str; ++str)
+		xQueueSend(uart_txq, str, portMAX_DELAY);	// blocks when queue is full
 }
 
 static void
 demo_task(void* args __attribute__((unused)))
 {
+	for (;;) {
+		uart_puts("Now this is a message..\n\r");
+		uart_puts("  sent via FreeRTOS queues.\n\n\r");
 
+		vTaskDelay(pdMS_TO_TICKS(1000));
+		
+		uart_puts("Just start typing to enter a line, or..\n\r"
+			"hit Enter first, then enter your input.\n\n\r");
+		
+		vTaskDelay(pdMS_TO_TICKS(1500));
+		gpio_toggle(GPIOC, GPIO13);
+	}
+}
+
+static void
+error_task(void* args __attribute__((unused)))
+{
+	for (;;) {
+		vTaskDelay(pdMS_TO_TICKS(500));
+		gpio_toggle(GPIOC, GPIO13);
+	}
 }
 
 int
 main(void)
 {
 	gpio_setup();
-	uart_setup();
-
-	xTaskCreate(uart_task, "UART", 100, NULL, configMAX_PRIORITIES - 1, NULL);
-	xTaskCreate(demo_task, "UART", 100, NULL, configMAX_PRIORITIES - 2, NULL);
+	if (uart_setup() != 0)
+		xTaskCreate(error_task, "ERROR", 200, NULL, configMAX_PRIORITIES - 1, NULL);
+	else {
+		xTaskCreate(uart_task, "UART", 200, NULL, configMAX_PRIORITIES - 1, NULL);
+		xTaskCreate(demo_task, "DEMO", 100, NULL, configMAX_PRIORITIES - 2, NULL);
+	}
 	
 	vTaskStartScheduler();
 	

@@ -13,7 +13,7 @@ add_executable(${PROJECT_NAME}.elf
 	${hal_src_stm32_f1}/gpio.c
 	${hal_src_stm32_cmn}/gpio_common_all.c
 	${hal_src_stm32_cmn}/flash_common_all.c
-
+	${hal_src_cm3}/nvic.c
 	# ${PROJECT_SOURCE_DIR}/../BookSources/rtos/libwwg/include/uartlib.h
 	# ${PROJECT_SOURCE_DIR}/../BookSources/rtos/libwwg/include/miniprintf.h
 	# ${PROJECT_SOURCE_DIR}/../BookSources/rtos/libwwg/include/getline.h
