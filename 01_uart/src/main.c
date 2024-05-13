@@ -84,8 +84,8 @@ main(void)
 
 	uart_setup();
 	
-	xTaskCreate(uart_task, "task1", 100, NULL, configMAX_PRIORITIES - 1, NULL);
-	xTaskCreate(demo_task, "task1", 100, NULL, configMAX_PRIORITIES - 1, NULL);
+	xTaskCreate(uart_task, "uart_task", 32, NULL, configMAX_PRIORITIES - 1, NULL);
+	xTaskCreate(demo_task, "demo_task", 32, NULL, configMAX_PRIORITIES - 1, NULL);
 	vTaskStartScheduler();
 
 	for (;;);
