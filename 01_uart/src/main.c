@@ -271,9 +271,113 @@ uart_setup(void)
 }
 
 static void
+puts_uart(uint32_t uartno, const char* buf)
+{
+	uint32_t uart = uarts[uartno - 1].usart;
+
+	while (*buf) {
+		while ( (USART_SR(uart) & USART_SR_TXE) == 0 )
+			taskYIELD();
+
+		usart_send_blocking(uart, *buf++);
+	}
+}
+
+static int32_t
+getc_uart_nb(uint32_t uartno)
+{
+	uart_t* uart = uart_data[uartno - 1];
+
+	if (!uart)
+		return (-1);
+	
+	return get_char(uart);
+}
+
+#define CONTROL(c) ((c) & 0x1F)
+
+int32_t
+getline(char* buf, uint32_t bufsize, int32_t (*get)(void), void (*put)(char ch))
+{
+	char ch = 0;
+	uint32_t bufx = 0, buflen = 0;
+
+	if (bufsize <= 1)
+		return (-1);
+	
+	--bufsize;	// leave room for null byte
+
+	while (ch != '\n') {
+		ch = get();
+
+		switch (ch) {
+			case CONTROL('U'):	// kill line
+				
+				for ( ; bufx > 0; --bufx)
+					put('\b');
+				
+				for ( ; bufx < buflen; ++bufx)
+					put(' ');
+				
+				buflen = 0;
+			// Fall through
+			case CONTROL('A'):	// begin line
+				for ( ; bufx > 0; --bufx)
+					put('b');
+			break;
+			case '\r':
+			case '\n':			// end line
+				ch = '\n';
+			break;
+			default:
+				if (bufx >= bufsize) {
+					put(0x07);
+					continue;
+				}
+
+				buf[bufx++] = ch;
+				put(ch);
+				if (bufx > buflen)
+					buflen = bufx;
+		}
+
+		if (bufx > buflen)
+			buflen = bufx;
+	}
+
+	buf[buflen] = 0;
+	put('\n');
+	put('\r');
+	return bufx;
+}
+
+static int32_t
+getline_uart(uint32_t uartno, char* buf, uint32_t bufsize)
+{
+	uart_info_t* uart = &uarts[uartno - 1];
+	return getline(buf, bufsize, uart->getc, uart->putc);
+}
+
+static void
 uart_task(void* args __attribute__((unused)))
 {
+	int32_t gc;
+	char kbuf[256], ch;
 
+	puts_uart(1, "\n\ruart_task() has begun:\n\r");
+
+	for (;;) {
+		if ((gc == getc_uart_nb(1)) != -1) {
+			puts_uart(1, "\r\nENTER INPUT: ");
+
+			ch = (char)gc;
+			if (ch != '\r' && ch != '\n') {
+				kbuf[0] = ch;
+				putc_uart(1, ch);
+				getline_uart(1, kbuf + 1, sizeof (kbuf - 1));
+			}
+		}
+	}
 }
 
 static void
