@@ -1,5 +1,5 @@
 #include <memory.h>
-#include <stdlib.h>
+// #include <stdlib.h>
 
 #include "FreeRTOS.h"
 #include "task.h"
@@ -225,7 +225,7 @@ open_uart(uint32_t uartno, uint32_t baud,
 	// Setup RX ISR
 	if (rxintf) {
 		if (uart_data[ux] == 0)
-			uart_data[ux] = malloc(sizeof(uart_t));
+			uart_data[ux] = pvPortMalloc(sizeof(uart_t));
 		
 		if (NULL == uart_data[ux])
 			return (-5);
@@ -478,5 +478,7 @@ main(void)
 	
 	vTaskStartScheduler();
 	
+	for (;;);
+
 	return (0);
 }

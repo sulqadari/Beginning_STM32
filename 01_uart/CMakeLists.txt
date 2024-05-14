@@ -33,16 +33,16 @@ add_compile_options(
 	-Wall -O1 -std=gnu11
 	-mcpu=cortex-m3 -mthumb -mtune=cortex-m3 
 	-fdata-sections -ffunction-sections
-	-specs=nosys.specs
-	-specs=nano.specs
+	# -specs=nosys.specs
+	# -specs=nano.specs
 )
 
 add_link_options(
 	-Wall -O1 -std=gnu11
 	-mcpu=cortex-m3 -mthumb -mtune=cortex-m3
 	-fdata-sections -ffunction-sections	# reduces code size
-	-specs=nosys.specs	# addresses 'Undefined reference to _sbrk'
-	-specs=nano.specs	# used in conjunction with '-specs=nosys.specs'
+	# -specs=nosys.specs	# addresses 'Undefined reference to _sbrk'
+	# -specs=nano.specs	# used in conjunction with '-specs=nosys.specs'
 	
 	"LINKER:--gc-sections"	# used in conjunction with '-fdata-sections -ffunction-sections'
 	"LINKER:-T,${CMAKE_SOURCE_DIR}/src/STM32F103XB_FLASH.ld"
