@@ -204,6 +204,7 @@ open_uart(uint32_t uartno, uint32_t baud,
 				stopb = USART_STOPBITS_1_5;
 			else
 				stopb = USART_STOPBITS_1;
+		break;
 		case '2':
 			stopb = USART_STOPBITS_2;
 		break;
@@ -469,6 +470,7 @@ int
 main(void)
 {
 	gpio_setup();
+	asm("NOP");
 	if (uart_setup() != 0)
 		xTaskCreate(error_task, "ERROR", 200, NULL, configMAX_PRIORITIES - 1, NULL);
 	else {

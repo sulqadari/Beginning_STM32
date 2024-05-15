@@ -30,7 +30,7 @@ add_compile_definitions(
 #-mapcs-frame -msoft-float
 # -fno-hosted -fno-builtin
 add_compile_options(
-	-Wall -O1 -std=gnu11
+	-Wall -O0 -g -std=gnu11
 	-mcpu=cortex-m3 -mthumb -mtune=cortex-m3 
 	-fdata-sections -ffunction-sections
 	# -specs=nosys.specs
@@ -38,7 +38,7 @@ add_compile_options(
 )
 
 add_link_options(
-	-Wall -O1 -std=gnu11
+	-Wall -O1 -g -std=gnu11
 	-mcpu=cortex-m3 -mthumb -mtune=cortex-m3
 	-fdata-sections -ffunction-sections	# reduces code size
 	# -specs=nosys.specs	# addresses 'Undefined reference to _sbrk'

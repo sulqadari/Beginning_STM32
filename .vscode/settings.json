@@ -11,6 +11,9 @@
 		"task.h": "c",
 		"usart_common_all.h": "c",
 		"freertos.h": "c",
-		"nvic.h": "c"
+		"nvic.h": "c",
+		"cortex-debug.armToolchainPath": "/usr/bin",
+		"cortex-debug.openocdPath": "/usr/bin/openocd",
+		"cortex-debug.gdbPath":"/usr/bin/dgb-multiarch"
 	}
 }
