@@ -228,7 +228,7 @@ uart_read_keystrokes(char* buf, uint32_t bufsize)
 }
 
 
-static char
+static int8_t
 next_char(cyclic_buff_t* buff)
 {
 	char rch;
@@ -242,7 +242,7 @@ next_char(cyclic_buff_t* buff)
 	return rch;
 }
 
-char
+int8_t
 uart_getc_nb(void)
 {
 	cyclic_buff_t* buff = uart_data;
@@ -253,7 +253,7 @@ uart_getc_nb(void)
 	return next_char(buff);
 }
 
-char
+int8_t
 uart_getc(void)
 {
 	cyclic_buff_t* uart = uart_data;

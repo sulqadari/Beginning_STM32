@@ -31,8 +31,8 @@ typedef struct {
 
 int8_t  uart_open(uint32_t baud, const char* cfg, const char* mode, uint32_t rts, uint32_t cts);
 int32_t uart_read_keystrokes(char* buf, uint32_t bufsize);
-char uart_getc_nb(void);
-char uart_getc(void);
+int8_t uart_getc_nb(void);
+int8_t uart_getc(void);
 void uart_putc(char ch);
 void uart_puts(const char* buf);
 

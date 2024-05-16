@@ -1,7 +1,7 @@
 #include "usart_utils.h"
 
 static QueueHandle_t uart_txq;
-bool doPrintHint = false;
+bool doPrintHint = true;
 
 static void
 gpio_setup(void)
@@ -55,13 +55,14 @@ uart_setup(void)
 static void
 task_uart(void* args __attribute__((unused)))
 {
-	char next;
+	int8_t next;
 	char kbuf[256], current;
 
 	uart_puts("\n\ruart_task() has begun:\n\r");
 
 	for (;;) {
-		if ((next = uart_getc_nb()) != -1) {
+		next = uart_getc_nb();
+		if (next != -1) {
 			uart_puts("\r\n\nENTER INPUT: ");
 
 			current = next;
