@@ -1,7 +1,7 @@
 #include "usart_utils.h"
 
 static QueueHandle_t uart_txq;
-bool hasNewLine = false;
+bool doPrintHint = false;
 
 static void
 gpio_setup(void)
@@ -45,7 +45,7 @@ gpio_setup(void)
 static int8_t
 uart_setup(void)
 {
-	if (uart_open(1, 115200, "8N1", "rw", 1, 1) != 0)
+	if (uart_open(115200, "8N1", "rw", 1, 1) != 0)
 		return (-1);
 	
 	uart_txq = xQueueCreate(256, sizeof(char));
@@ -58,31 +58,31 @@ task_uart(void* args __attribute__((unused)))
 	char next;
 	char kbuf[256], current;
 
-	uart_puts(1, "\n\ruart_task() has begun:\n\r");
+	uart_puts("\n\ruart_task() has begun:\n\r");
 
 	for (;;) {
-		if ((next = uart_getc_nb(1)) != -1) {
-			uart_puts(1, "\r\n\nENTER INPUT: ");
+		if ((next = uart_getc_nb()) != -1) {
+			uart_puts("\r\n\nENTER INPUT: ");
 
 			current = next;
 			if (current != '\r' && current != '\n') {
 				kbuf[0] = current;
-				uart_putc(1, current);
-				uart_getline(1, (kbuf + 1), sizeof(kbuf - 1));
+				uart_putc(current);
+				uart_read_keystrokes((kbuf + 1), sizeof(kbuf - 1));
 			} else {
 				// read the entire line.
-				uart_getline(1, kbuf, sizeof(kbuf));
+				uart_read_keystrokes(kbuf, sizeof(kbuf));
 			}
 
-			uart_puts(1, "\r\nReceived input: '");
-			uart_puts(1, kbuf);
-			uart_puts(1, "'\n\r");
-			hasNewLine = true;
+			uart_puts("\r\nReceived input: '");
+			uart_puts(kbuf);
+			uart_puts("'\n\r");
+			doPrintHint = true;
 		}
 
 		// Receive a char to be transmitted.
 		if (xQueueReceive(uart_txq, &current, 10) == pdPASS)
-			uart_putc(1, current);
+			uart_putc(current);
 	}
 }
 
@@ -98,10 +98,11 @@ task_demo(void* args __attribute__((unused)))
 {
 	for (;;) {
 		
-		if (hasNewLine) {
+		if (doPrintHint) {
 			demo_print_string("demo:/$ > ");
-			hasNewLine = false;
+			doPrintHint = false;
 		}
+
 		vTaskDelay(pdMS_TO_TICKS(1000));
 		gpio_toggle(GPIOC, GPIO13);
 	}

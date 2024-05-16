@@ -19,25 +19,21 @@ typedef struct {
 	volatile uint16_t head;
 	volatile uint16_t tail;
 	char buf[USART_BUF_DEPTH];
-} data_buff_t;
+} cyclic_buff_t;
 
 typedef struct {
 	uint32_t usart;
 	uint32_t rcc;
 	uint32_t irq;
-	int32_t (*getc)(void);
-	void (*putc)(char ch);
+	int32_t (*read_char)(void);
+	void (*write_char)(char ch);
 } uart_handler_t;
 
-extern uart_handler_t uart_hlr[3];
-extern data_buff_t* uart_data[3];
-
-int32_t uart_getc_nb(uint32_t uartno);
-int8_t  uart_open(uint32_t uartno, uint32_t baud, const char* cfg,
-					 const char* mode, uint32_t rts, uint32_t cts);
-int32_t uart_getline(uint32_t uartno, char* buf, uint32_t bufsize);
-char uart_getc(uint32_t uartno);
-void uart_putc(uint32_t uartno, char ch);
-void uart_puts(uint32_t uartno, const char* buf);
+int8_t  uart_open(uint32_t baud, const char* cfg, const char* mode, uint32_t rts, uint32_t cts);
+int32_t uart_read_keystrokes(char* buf, uint32_t bufsize);
+char uart_getc_nb(void);
+char uart_getc(void);
+void uart_putc(char ch);
+void uart_puts(const char* buf);
 
 #endif // !USART_UTILS_H

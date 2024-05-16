@@ -1,85 +1,43 @@
 
 #include "usart_utils.h"
 
-data_buff_t* uart_data[3] = {0, 0, 0};
-
-static char
-get_char(data_buff_t* buff)
-{
-	char rch;
-
-	if (buff->head == buff->tail)
-		return (-1);
-	
-	rch = buff->buf[buff->head];
-	buff->head = (buff->head + 1) % USART_BUF_DEPTH;
-
-	return rch;
-}
-
 static int32_t
-uart1_getc(void)
+read_char(void)
 {
-	return uart_getc(1);
+	return uart_getc();
 }
 
-static int32_t
-uart2_getc(void)
-{
-	return uart_getc(2);
-}
-
-static int32_t
-uart3_getc(void)
-{
-	return uart_getc(3);
-}
 
 static void
-uart1_putc(char ch)
+write_char(char ch)
 {
 	if (ch == '\n')
-		uart_putc(1, '\r');
+		uart_putc('\r');
 	
-	uart_putc(1, ch);
+	uart_putc(ch);
 }
 
-static void
-uart2_putc(char ch)
-{
-	if (ch == '\n')
-		uart_putc(2, '\r');
-	
-	uart_putc(2, ch);
-}
-
-static void
-uart3_putc(char ch)
-{
-	if (ch == '\n')
-		uart_putc(3, '\r');
-	
-	uart_putc(3, ch);
-}
-
-uart_handler_t uart_hlr[3] = {
-	{ USART1, RCC_USART1, NVIC_USART1_IRQ, uart1_getc, uart1_putc },
-	{ USART2, RCC_USART2, NVIC_USART2_IRQ, uart2_getc, uart2_putc },
-	{ USART3, RCC_USART3, NVIC_USART3_IRQ, uart3_getc, uart3_putc }
+cyclic_buff_t* uart_data = NULL;
+uart_handler_t uart_hlr = {
+	USART1,
+	RCC_USART1,
+	NVIC_USART1_IRQ,
+	read_char,
+	write_char,
 };
 
 static int32_t
-getline(char* buf, uint32_t bufsize, int32_t (*get)(void), void (*put)(char ch))
+parse_line(char* buf, uint32_t bufsize, int32_t (*get)(void), void (*put)(char ch))
 {
 
 #define CONTROL(c) ((c) & 0x1F)
 
 	char ch = 0;
-	uint32_t bufx = 0, buflen = 0;
+	uint32_t buff_start = 0, buflen = 0;
 
 	if (bufsize <= 1)
 		return (-1);
-	
+
 	--bufsize;	// leave room for null byte
 
 	while (ch != '\n') {
@@ -88,59 +46,59 @@ getline(char* buf, uint32_t bufsize, int32_t (*get)(void), void (*put)(char ch))
 		switch (ch) {
 			case CONTROL('U'):	// kill line
 				
-				for ( ; bufx > 0; --bufx)
+				for ( ; buff_start > 0; --buff_start)
 					put('\b');
-				for ( ; bufx < buflen; ++bufx)
+				for ( ; buff_start < buflen; ++buff_start)
 					put(' ');
 				buflen = 0;
 			// Fall through
 			case CONTROL('A'):	// begin line
-				for ( ; bufx > 0; --bufx)
+				for ( ; buff_start > 0; --buff_start)
 					put('\b');
 			break;
 			case CONTROL('B'):	// backward char
-				if (bufx > 0) {
-					--bufx;
+				if (buff_start > 0) {
+					--buff_start;
 					put('\b');
 				}
 			break;
 			case CONTROL('F'):	// forward char
-				if (bufx < bufsize && bufx < buflen)
-					put(buf[++bufx]);
+				if (buff_start < bufsize && buff_start < buflen)
+					put(buf[++buff_start]);
 			break;
 			case CONTROL('E'):	// end line
-				for ( ; bufx < buflen; ++bufx)
-					put(buf[bufx]);
+				for ( ; buff_start < buflen; ++buff_start)
+					put(buf[buff_start]);
 			break;
 			case CONTROL('H'):	// backspace char
 			case 0x7F:			// rub out
-				if (bufx <= 0)
+				if (buff_start <= 0)
 					break;
-				--bufx;
+				--buff_start;
 				put('\b');
 			// fall through
 			case CONTROL('D'):	// delete char
-				if (bufx < buflen) {
-					memmove((buf + bufx), (buf + bufx + 1), (buflen - bufx - 1));
+				if (buff_start < buflen) {
+					memmove((buf + buff_start), (buf + buff_start + 1), (buflen - buff_start - 1));
 					--buflen;
 
-					for (uint32_t x = bufx; x < buflen; ++x)
+					for (uint32_t x = buff_start; x < buflen; ++x)
 						put(buf[x]);
 					put(' ');
-					for (uint32_t x = buflen + 1; x > bufx; --x)
+					for (uint32_t x = buflen + 1; x > buff_start; --x)
 						put('\b');
 				}
 			break;
 			case CONTROL('I'):	// insert chars (TAB)
-				if ((bufx < buflen) && ((buflen + 1) < bufsize)) {
-					memmove((buf + bufx + 1), (buf + bufx), (buflen - bufx));
-					buf[bufx] = ' ';
+				if ((buff_start < buflen) && ((buflen + 1) < bufsize)) {
+					memmove((buf + buff_start + 1), (buf + buff_start), (buflen - buff_start));
+					buf[buff_start] = ' ';
 					++buflen;
 					put(' ');
 
-					for (uint32_t x = bufx + 1; x < buflen; ++x)
+					for (uint32_t x = buff_start + 1; x < buflen; ++x)
 						put(buf[x]);
-					for (uint32_t x = bufx; x < buflen; ++x)
+					for (uint32_t x = buff_start; x < buflen; ++x)
 						put('\b');
 				}
 			break;
@@ -149,20 +107,20 @@ getline(char* buf, uint32_t bufsize, int32_t (*get)(void), void (*put)(char ch))
 				ch = '\n';
 			break;
 			default: {			// overtype
-				if (bufx >= bufsize) {
+				if (buff_start >= bufsize) {
 					put(0x07);	// bell
 					continue;	// no room left
 				}
 
-				buf[bufx++] = ch;
+				buf[buff_start++] = ch;
 				put(ch);
-				if (bufx > buflen)
-					buflen = bufx;
+				if (buff_start > buflen)
+					buflen = buff_start;
 			}
 		}
 
-		if (bufx > buflen)
-			buflen = bufx;
+		if (buff_start > buflen)
+			buflen = buff_start;
 	}
 
 #undef CONTROL
@@ -170,22 +128,18 @@ getline(char* buf, uint32_t bufsize, int32_t (*get)(void), void (*put)(char ch))
 	buf[buflen] = 0;
 	put('\n');
 	put('\r');
-	return bufx;
+	return buff_start;
 }
 
 int8_t
-uart_open(uint32_t uartno, uint32_t baud,
-			const char* cfg, const char* mode,
-			uint32_t rts, uint32_t cts)
+uart_open(uint32_t baud, const char* cfg, const char* mode,
+								uint32_t rts, uint32_t cts)
 {
-	uint32_t uart, ux, stopb, iomode, parity, fc;
+	uint32_t uart, stopb, iomode, parity, fc;
 	uart_handler_t* info;
 	bool rxintf = false;
-
-	if (uartno < 1 || uartno > 3)
-		return (-1);
 	
-	info = &uart_hlr[ux = uartno - 1];	// USART params
+	info = &uart_hlr;				// USART params
 	uart = info->usart;				// USART address
 	usart_disable_rx_interrupt(uart);
 
@@ -230,13 +184,13 @@ uart_open(uint32_t uartno, uint32_t baud,
 	
 	// Setup RX ISR
 	if (rxintf) {
-		if (uart_data[ux] == 0)
-			uart_data[ux] = pvPortMalloc(sizeof(data_buff_t));
+		if (uart_data == NULL)
+			uart_data = pvPortMalloc(sizeof(cyclic_buff_t));
 		
-		if (NULL == uart_data[ux])
+		if (NULL == uart_data)
 			return (-5);
 		
-		uart_data[ux]->head = uart_data[ux]->tail = 0;
+		uart_data->head = uart_data->tail = 0;
 	}
 
 	// Flow control mode
@@ -267,43 +221,57 @@ uart_open(uint32_t uartno, uint32_t baud,
 }
 
 int32_t
-uart_getline(uint32_t uartno, char* buf, uint32_t bufsize)
+uart_read_keystrokes(char* buf, uint32_t bufsize)
 {
-	uart_handler_t* uart = &uart_hlr[uartno - 1];
-	return getline(buf, bufsize, uart->getc, uart->putc);
+	uart_handler_t* uart = &uart_hlr;
+	return parse_line(buf, bufsize, uart->read_char, uart->write_char);
 }
 
 
-char
-uart_getc(uint32_t uartno)
+static char
+next_char(cyclic_buff_t* buff)
 {
-	data_buff_t* uart = uart_data[uartno - 1];
+	char rch;
+
+	if (buff->head == buff->tail)
+		return (-1);
+	
+	rch = buff->buf[buff->head];
+	buff->head = (buff->head + 1) % USART_BUF_DEPTH;
+
+	return rch;
+}
+
+char
+uart_getc_nb(void)
+{
+	cyclic_buff_t* buff = uart_data;
+
+	if (!buff)
+		return (-1);
+
+	return next_char(buff);
+}
+
+char
+uart_getc(void)
+{
+	cyclic_buff_t* uart = uart_data;
 	char rch;
 
 	if (!uart)
 		return (-1);
 	
-	while ( (rch = get_char(uart)) == -1 )
+	while ( (rch = next_char(uart)) == -1 )
 		taskYIELD();
 	
 	return rch;
 }
 
-char
-uart_getc_nb(uint32_t uartno)
-{
-	data_buff_t* buff = uart_data[uartno - 1];
-
-	if (!buff)
-		return (-1);
-
-	return get_char(buff);
-}
-
 void
-uart_putc(uint32_t uartno, char ch)
+uart_putc(char ch)
 {
-	uint32_t uart = uart_hlr[uartno - 1].usart;
+	uint32_t uart = uart_hlr.usart;
 
 	while ((USART_SR(uart) & USART_SR_TXE) == 0)
 		taskYIELD();
@@ -312,9 +280,9 @@ uart_putc(uint32_t uartno, char ch)
 }
 
 void
-uart_puts(uint32_t uartno, const char* buf)
+uart_puts(const char* buf)
 {
-	uint32_t uart = uart_hlr[uartno - 1].usart;
+	uint32_t uart = uart_hlr.usart;
 
 	while (*buf) {
 		while ( (USART_SR(uart) & USART_SR_TXE) == 0 )
