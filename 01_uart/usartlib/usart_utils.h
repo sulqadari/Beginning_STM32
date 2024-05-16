@@ -13,13 +13,13 @@
 #include "libopencm3/stm32/usart.h"
 #include "libopencm3/cm3/nvic.h"
 
-#define USART_BUF_DEPTH 32
+#define USART_BUF_DEPTH 64
 
 typedef struct {
 	volatile uint16_t head;
 	volatile uint16_t tail;
 	uint8_t buf[USART_BUF_DEPTH];
-} uart_data_t;
+} data_buff_t;
 
 typedef struct {
 	uint32_t usart;
@@ -30,9 +30,9 @@ typedef struct {
 } uart_handler_t;
 
 extern uart_handler_t uart_hlr[3];
-extern uart_data_t* uart_data[3];
+extern data_buff_t* uart_data[3];
 
-int32_t getc_uart_nb(uint32_t uartno);
+int32_t uart_getc_nb(uint32_t uartno);
 
 int8_t open_uart(uint32_t uartno, uint32_t baud, const char* cfg,
 				const char* mode, uint32_t rts, uint32_t cts);

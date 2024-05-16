@@ -52,7 +52,7 @@ uart_setup(void)
 }
 
 static void
-uart_task(void* args __attribute__((unused)))
+task_uart(void* args __attribute__((unused)))
 {
 	int32_t gc;
 	char kbuf[256], ch;
@@ -60,7 +60,7 @@ uart_task(void* args __attribute__((unused)))
 	puts_uart(1, "\n\ruart_task() has begun:\n\r");
 
 	for (;;) {
-		if ((gc = getc_uart_nb(1)) != -1) {
+		if ((gc = uart_getc_nb(1)) != -1) {
 			puts_uart(1, "\r\nENTER INPUT: ");
 
 			ch = (char)gc;
@@ -82,17 +82,17 @@ uart_task(void* args __attribute__((unused)))
 }
 
 static inline void
-uart_puts(const char* str)
+print_string(const char* str)
 {
 	for ( ; *str; ++str)
 		xQueueSend(uart_txq, str, portMAX_DELAY);	// blocks when queue is full
 }
 
 static void
-demo_task(void* args __attribute__((unused)))
+task_demo(void* args __attribute__((unused)))
 {
 	for (;;) {
-		uart_puts("Just start typing to enter a line, or..\n\r"
+		print_string("Just start typing to enter a line, or..\n\r"
 			"hit Enter first, then enter your input.\n\n\r");
 
 		vTaskDelay(pdMS_TO_TICKS(1000));
@@ -106,8 +106,8 @@ main(void)
 	gpio_setup();
 	uart_setup();
 
-	xTaskCreate(uart_task, "UART", 200, NULL, configMAX_PRIORITIES - 1, NULL);
-	xTaskCreate(demo_task, "DEMO", 100, NULL, configMAX_PRIORITIES - 2, NULL);
+	xTaskCreate(task_uart, "UART", 200, NULL, configMAX_PRIORITIES - 1, NULL);
+	xTaskCreate(task_demo, "DEMO", 100, NULL, configMAX_PRIORITIES - 2, NULL);
 	
 	vTaskStartScheduler();
 	

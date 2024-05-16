@@ -1,37 +1,37 @@
 
 #include "usart_utils.h"
 
-uart_data_t* uart_data[3] = {0, 0, 0};
+data_buff_t* uart_data[3] = {0, 0, 0};
 
 static int32_t
-get_char(uart_data_t* uart)
+get_char(data_buff_t* buff)
 {
 	char rch;
 
-	if (uart->head == uart->tail)
+	if (buff->head == buff->tail)
 		return (-1);
 	
-	rch = uart->buf[uart->head];
-	uart->head = (uart->head + 1) % USART_BUF_DEPTH;
+	rch = buff->buf[buff->head];
+	buff->head = (buff->head + 1) % USART_BUF_DEPTH;
 
 	return rch;
 }
 
 int32_t
-getc_uart_nb(uint32_t uartno)
+uart_getc_nb(uint32_t uartno)
 {
-	uart_data_t* uart = uart_data[uartno - 1];
+	data_buff_t* buff = uart_data[uartno - 1];
 
-	if (!uart)
+	if (!buff)
 		return (-1);
-	
-	return get_char(uart);
+
+	return get_char(buff);
 }
 
 static char
-getc_uart(uint32_t uartno)
+uart_getc(uint32_t uartno)
 {
-	uart_data_t* uart = uart_data[uartno - 1];
+	data_buff_t* uart = uart_data[uartno - 1];
 	int32_t rch;
 
 	if (!uart)
@@ -47,19 +47,19 @@ getc_uart(uint32_t uartno)
 static int32_t
 uart1_getc(void)
 {
-	return getc_uart(1);
+	return uart_getc(1);
 }
 
 static int32_t
 uart2_getc(void)
 {
-	return getc_uart(2);
+	return uart_getc(2);
 }
 
 static int32_t
 uart3_getc(void)
 {
-	return getc_uart(3);
+	return uart_getc(3);
 }
 
 
@@ -165,7 +165,7 @@ open_uart(uint32_t uartno, uint32_t baud,
 	// Setup RX ISR
 	if (rxintf) {
 		if (uart_data[ux] == 0)
-			uart_data[ux] = pvPortMalloc(sizeof(uart_data_t));
+			uart_data[ux] = pvPortMalloc(sizeof(data_buff_t));
 		
 		if (NULL == uart_data[ux])
 			return (-5);
@@ -203,7 +203,9 @@ open_uart(uint32_t uartno, uint32_t baud,
 static int32_t
 getline(char* buf, uint32_t bufsize, int32_t (*get)(void), void (*put)(char ch))
 {
+
 #define CONTROL(c) ((c) & 0x1F)
+
 	char ch = 0;
 	uint32_t bufx = 0, buflen = 0;
 
@@ -273,11 +275,12 @@ getline(char* buf, uint32_t bufsize, int32_t (*get)(void), void (*put)(char ch))
 					for (uint32_t x = bufx; x < buflen; ++x)
 						put('\b');
 				}
+			break;
 			case '\r':
 			case '\n':			// end line
 				ch = '\n';
 			break;
-			default:			// overtype
+			default: {			// overtype
 				if (bufx >= bufsize) {
 					put(0x07);	// bell
 					continue;	// no room left
@@ -287,6 +290,7 @@ getline(char* buf, uint32_t bufsize, int32_t (*get)(void), void (*put)(char ch))
 				put(ch);
 				if (bufx > buflen)
 					buflen = bufx;
+			}
 		}
 
 		if (bufx > buflen)
