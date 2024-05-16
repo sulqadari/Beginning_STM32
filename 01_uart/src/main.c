@@ -1,6 +1,7 @@
 #include "usart_utils.h"
 
 static QueueHandle_t uart_txq;
+bool hasNewLine = false;
 
 static void
 gpio_setup(void)
@@ -44,7 +45,7 @@ gpio_setup(void)
 static int8_t
 uart_setup(void)
 {
-	if (open_uart(1, 115200, "8N1", "rw", 1, 1) != 0)
+	if (uart_open(1, 115200, "8N1", "rw", 1, 1) != 0)
 		return (-1);
 	
 	uart_txq = xQueueCreate(256, sizeof(char));
@@ -54,35 +55,39 @@ uart_setup(void)
 static void
 task_uart(void* args __attribute__((unused)))
 {
-	int32_t gc;
-	char kbuf[256], ch;
+	char next;
+	char kbuf[256], current;
 
-	puts_uart(1, "\n\ruart_task() has begun:\n\r");
+	uart_puts(1, "\n\ruart_task() has begun:\n\r");
 
 	for (;;) {
-		if ((gc = uart_getc_nb(1)) != -1) {
-			puts_uart(1, "\r\nENTER INPUT: ");
+		if ((next = uart_getc_nb(1)) != -1) {
+			uart_puts(1, "\r\n\nENTER INPUT: ");
 
-			ch = (char)gc;
-			if (ch != '\r' && ch != '\n') {
-				kbuf[0] = ch;
-				putc_uart(1, ch);
-				getline_uart(1, (kbuf + 1), sizeof (kbuf - 1));
+			current = next;
+			if (current != '\r' && current != '\n') {
+				kbuf[0] = current;
+				uart_putc(1, current);
+				uart_getline(1, (kbuf + 1), sizeof(kbuf - 1));
 			} else {
 				// read the entire line.
-				getline_uart(1, kbuf, sizeof(kbuf));
+				uart_getline(1, kbuf, sizeof(kbuf));
 			}
+
+			uart_puts(1, "\r\nReceived input: '");
+			uart_puts(1, kbuf);
+			uart_puts(1, "'\n\r");
+			hasNewLine = true;
 		}
 
 		// Receive a char to be transmitted.
-		if (xQueueReceive(uart_txq, &ch, 10) == pdPASS)
-			putc_uart(1, ch);
-		gpio_toggle(GPIOC, GPIO13);
+		if (xQueueReceive(uart_txq, &current, 10) == pdPASS)
+			uart_putc(1, current);
 	}
 }
 
 static inline void
-print_string(const char* str)
+demo_print_string(const char* str)
 {
 	for ( ; *str; ++str)
 		xQueueSend(uart_txq, str, portMAX_DELAY);	// blocks when queue is full
@@ -92,10 +97,13 @@ static void
 task_demo(void* args __attribute__((unused)))
 {
 	for (;;) {
-		print_string("Just start typing to enter a line, or..\n\r"
-			"hit Enter first, then enter your input.\n\n\r");
-
+		
+		if (hasNewLine) {
+			demo_print_string("demo:/$ > ");
+			hasNewLine = false;
+		}
 		vTaskDelay(pdMS_TO_TICKS(1000));
+		gpio_toggle(GPIOC, GPIO13);
 	}
 }
 
