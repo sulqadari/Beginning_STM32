@@ -291,3 +291,9 @@ uart_puts(const char* buf)
 		usart_send_blocking(uart, *buf++);
 	}
 }
+
+void
+USART1_IRQHandler(void)
+{
+	asm("NOP");
+}

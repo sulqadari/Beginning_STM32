@@ -35,5 +35,6 @@ int8_t uart_getc_nb(void);
 int8_t uart_getc(void);
 void uart_putc(char ch);
 void uart_puts(const char* buf);
+void USART1_IRQHandler(void);
 
 #endif // !USART_UTILS_H

@@ -104,7 +104,7 @@ task_demo(void* args __attribute__((unused)))
 			doPrintHint = false;
 		}
 
-		vTaskDelay(pdMS_TO_TICKS(1000));
+		vTaskDelay(pdMS_TO_TICKS(1));
 		gpio_toggle(GPIOC, GPIO13);
 	}
 }
