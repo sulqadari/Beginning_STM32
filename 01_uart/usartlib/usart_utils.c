@@ -295,5 +295,22 @@ uart_puts(const char* buf)
 void
 USART1_IRQHandler(void)
 {
-	asm("NOP");
+	cyclic_buff_t* buff = uart_data;
+	uint32_t uart = uart_hlr.usart;
+	uint32_t tail;
+	char ch;
+
+	if (!buff)
+		return;
+	
+	while (USART_SR(uart) & USART_SR_RXNE) {
+		ch = USART_DR(uart);
+		tail = (buff->tail + 1) % USART_BUF_DEPTH;	/* Calculate next tail index. */
+
+		/* Save data if there is a free space left in the queue. */
+		if (tail != buff->head) {
+			buff->buf[buff->tail] = ch;
+			buff->tail = tail;			/* Advance tail index. */
+		}
+	}
 }

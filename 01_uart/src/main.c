@@ -72,7 +72,7 @@ task_uart(void* args __attribute__((unused)))
 				uart_read_keystrokes((kbuf + 1), sizeof(kbuf - 1));
 			} else {
 				// read the entire line.
-				uart_read_keystrokes(kbuf, sizeof(kbuf));
+				uart_read_keystrokes(kbuf, sizeof kbuf);
 			}
 
 			uart_puts("\r\nReceived input: '");
