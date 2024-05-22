@@ -48,7 +48,7 @@ uart_setup(void)
 	if (uart_open(115200, "8N1", "rw", 1, 1) != 0)
 		return (-1);
 	
-	uart_txq = xQueueCreate(256, sizeof(char));
+	uart_txq = xQueueCreate(64, sizeof(char));
 	return (0);
 }
 
@@ -61,15 +61,15 @@ task_uart(void* args __attribute__((unused)))
 	uart_puts("\n\ruart_task() has begun:\n\r");
 
 	for (;;) {
-		next = uart_getc_nb();
-		if (next != -1) {
+		// next = uart_getc_nb();
+		if ((next = uart_getc_nb()) != -1) {
 			uart_puts("\r\n\nENTER INPUT: ");
 
-			current = next;
+			current = (char)next;
 			if (current != '\r' && current != '\n') {
 				kbuf[0] = current;
 				uart_putc(current);
-				uart_read_keystrokes((kbuf + 1), sizeof(kbuf - 1));
+				uart_read_keystrokes((kbuf + 1), sizeof kbuf - 1);
 			} else {
 				// read the entire line.
 				uart_read_keystrokes(kbuf, sizeof kbuf);
@@ -78,7 +78,6 @@ task_uart(void* args __attribute__((unused)))
 			uart_puts("\r\nReceived input: '");
 			uart_puts(kbuf);
 			uart_puts("'\n\r");
-			doPrintHint = true;
 		}
 
 		// Receive a char to be transmitted.
@@ -98,13 +97,7 @@ static void
 task_demo(void* args __attribute__((unused)))
 {
 	for (;;) {
-		
-		if (doPrintHint) {
-			demo_print_string("demo:/$ > ");
-			doPrintHint = false;
-		}
-
-		vTaskDelay(pdMS_TO_TICKS(1));
+		vTaskDelay(pdMS_TO_TICKS(2000));
 		gpio_toggle(GPIOC, GPIO13);
 	}
 }
@@ -117,7 +110,7 @@ main(void)
 	uart_setup();
 
 	xTaskCreate(task_uart, "UART", 200, NULL, configMAX_PRIORITIES - 1, NULL);
-	xTaskCreate(task_demo, "DEMO", 100, NULL, configMAX_PRIORITIES - 2, NULL);
+	// xTaskCreate(task_demo, "DEMO", 100, NULL, configMAX_PRIORITIES - 2, NULL);
 	
 	vTaskStartScheduler();
 	
