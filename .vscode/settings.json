@@ -16,6 +16,8 @@
 		"cortex-debug.openocdPath": "/usr/bin/openocd",
 		"cortex-debug.gdbPath": "/usr/bin/dgb-multiarch",
 		"gpio.h": "c",
-		"usart_utils.h": "c"
+		"usart_utils.h": "c",
+		"iterator": "c",
+		"random": "c"
 	}
 }

@@ -42,47 +42,49 @@ gpio_setup(void)
 
 }
 
-static int8_t
+static int32_t
 uart_setup(void)
 {
 	if (uart_open(115200, "8N1", "rw", 1, 1) != 0)
 		return (-1);
 	
-	uart_txq = xQueueCreate(64, sizeof(char));
+	uart_txq = xQueueCreate(256, sizeof(char));
 	return (0);
 }
 
 static void
 task_uart(void* args __attribute__((unused)))
 {
-	int8_t next;
-	char kbuf[256], current;
+	int32_t fetched;
+	char kbuf[256], ch;
 
-	uart_puts("\n\ruart_task() has begun:\n\r");
-
+	uart_puts("\r\n***FunTerm***\r\n");
 	for (;;) {
-		// next = uart_getc_nb();
-		if ((next = uart_getc_nb()) != -1) {
-			uart_puts("\r\n\nENTER INPUT: ");
 
-			current = (char)next;
-			if (current != '\r' && current != '\n') {
-				kbuf[0] = current;
-				uart_putc(current);
+		if ((fetched = uart_getc_nb()) != -1) {
+			
+			uart_puts(">>>: ");
+			ch = (char)fetched;
+
+			if (ch != '\r' && ch != '\n') {
+				kbuf[0] = ch;
+				uart_putc(ch);
 				uart_read_keystrokes((kbuf + 1), sizeof kbuf - 1);
 			} else {
 				// read the entire line.
 				uart_read_keystrokes(kbuf, sizeof kbuf);
 			}
 
-			uart_puts("\r\nReceived input: '");
+			uart_puts("\n\r<<<'");
 			uart_puts(kbuf);
 			uart_puts("'\n\r");
 		}
 
 		// Receive a char to be transmitted.
-		if (xQueueReceive(uart_txq, &current, 10) == pdPASS)
-			uart_putc(current);
+		if (xQueueReceive(uart_txq, &ch, 10) == pdPASS) {
+			uart_putc(ch);
+			gpio_toggle(GPIOC, GPIO13);
+		}
 	}
 }
 
@@ -94,7 +96,7 @@ demo_print_string(const char* str)
 }
 
 static void
-task_demo(void* args __attribute__((unused)))
+task_blink(void* args __attribute__((unused)))
 {
 	for (;;) {
 		vTaskDelay(pdMS_TO_TICKS(2000));
@@ -105,12 +107,11 @@ task_demo(void* args __attribute__((unused)))
 int
 main(void)
 {
-	asm("NOP");
 	gpio_setup();
 	uart_setup();
 
-	xTaskCreate(task_uart, "UART", 200, NULL, configMAX_PRIORITIES - 1, NULL);
-	// xTaskCreate(task_demo, "DEMO", 100, NULL, configMAX_PRIORITIES - 2, NULL);
+	xTaskCreate(task_uart, "UART_RTX", 100, NULL, configMAX_PRIORITIES - 1, NULL);
+	xTaskCreate(task_blink, "Blink", 100, NULL, configMAX_PRIORITIES - 1, NULL);
 	
 	vTaskStartScheduler();
 	

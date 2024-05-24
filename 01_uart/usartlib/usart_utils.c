@@ -1,12 +1,59 @@
 
 #include "usart_utils.h"
 
+/* Forward declaration. */
+
+int32_t uart_getc(void);
+static void write_char(char ch);
+
+cyclic_buff_t* uart_data = NULL;
+uart_handler_t uart_hlr = {
+	USART1,
+	RCC_USART1,
+	NVIC_USART1_IRQ,
+	uart_getc,
+	write_char,
+};
+
 static int32_t
-read_char(void)
+next_char(cyclic_buff_t* buff)
 {
-	return uart_getc();
+	int32_t rch;
+
+	if (buff->head == buff->tail)
+		return (-1);
+	
+	rch = buff->buf[buff->head];
+	buff->head = (buff->head + 1) % USART_BUF_DEPTH;
+
+	return rch;
 }
 
+int32_t
+uart_getc(void)
+{
+	cyclic_buff_t* uart = uart_data;
+	int32_t rch;
+
+	if (!uart)
+		return (-1);
+	
+	while ( (rch = next_char(uart)) == -1 )
+		taskYIELD();
+	
+	return rch;
+}
+
+void
+uart_putc(char ch)
+{
+	uint32_t uart = uart_hlr.usart;
+
+	while ((USART_SR(uart) & USART_SR_TXE) == 0)
+		taskYIELD();
+	
+	usart_send_blocking(uart, ch);
+}
 
 static void
 write_char(char ch)
@@ -16,15 +63,6 @@ write_char(char ch)
 	
 	uart_putc(ch);
 }
-
-cyclic_buff_t* uart_data = NULL;
-uart_handler_t uart_hlr = {
-	USART1,
-	RCC_USART1,
-	NVIC_USART1_IRQ,
-	read_char,
-	write_char,
-};
 
 static int32_t
 parse_line(char* buf, uint32_t bufsize, int32_t (*get)(void), void (*put)(char ch))
@@ -131,7 +169,7 @@ parse_line(char* buf, uint32_t bufsize, int32_t (*get)(void), void (*put)(char c
 	return buff_start;
 }
 
-int8_t
+int32_t
 uart_open(uint32_t baud, const char* cfg, const char* mode,
 								uint32_t rts, uint32_t cts)
 {
@@ -227,22 +265,7 @@ uart_read_keystrokes(char* buf, uint32_t bufsize)
 	return parse_line(buf, bufsize, uart->read_char, uart->write_char);
 }
 
-
-static int8_t
-next_char(cyclic_buff_t* buff)
-{
-	char rch;
-
-	if (buff->head == buff->tail)
-		return (-1);
-	
-	rch = buff->buf[buff->head];
-	buff->head = (buff->head + 1) % USART_BUF_DEPTH;
-
-	return rch;
-}
-
-int8_t
+int32_t
 uart_getc_nb(void)
 {
 	cyclic_buff_t* buff = uart_data;
@@ -251,32 +274,6 @@ uart_getc_nb(void)
 		return (-1);
 
 	return next_char(buff);
-}
-
-int8_t
-uart_getc(void)
-{
-	cyclic_buff_t* uart = uart_data;
-	char rch;
-
-	if (!uart)
-		return (-1);
-	
-	while ( (rch = next_char(uart)) == -1 )
-		taskYIELD();
-	
-	return rch;
-}
-
-void
-uart_putc(char ch)
-{
-	uint32_t uart = uart_hlr.usart;
-
-	while ((USART_SR(uart) & USART_SR_TXE) == 0)
-		taskYIELD();
-	
-	usart_send_blocking(uart, ch);
 }
 
 void
