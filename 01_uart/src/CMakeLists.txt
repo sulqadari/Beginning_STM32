@@ -14,12 +14,10 @@ add_executable(${PROJECT_NAME}.elf
 	${hal_src_stm32_cmn}/gpio_common_all.c
 	${hal_src_stm32_cmn}/flash_common_all.c
 	${hal_src_cm3}/nvic.c
-	${PROJECT_SOURCE_DIR}/usartlib/usart_utils.c
 )
 
 target_include_directories(${PROJECT_NAME}.elf
 	PUBLIC
-		${PROJECT_SOURCE_DIR}/usartlib
 		${PROJECT_SOURCE_DIR}/includes
 		${PROJECT_SOURCE_DIR}/../BookSources/rtos/libwwg/include
 		${rtos_sources}/include

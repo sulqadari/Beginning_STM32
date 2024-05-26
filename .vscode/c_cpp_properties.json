@@ -4,12 +4,12 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/01_uart/includes",
-				"${workspaceFolder}/01_uart/usartlib",
                 "${workspaceFolder}/libopencm3/include",
                 "${workspaceFolder}/FreeRTOS/FreeRTOS/Source/include",
                 "${workspaceFolder}/FreeRTOS/FreeRTOS/Source/portable/GCC/ARM_CM3",
                 "${workspaceFolder}/libopencm3/include/libopencm3/stm32",
 				"${workspaceFolder}/libopencm3/include/libopencm3/stm32/f1"
+				
             ],
             "defines": [
                 "STM32F1"

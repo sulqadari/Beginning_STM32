@@ -38,7 +38,7 @@ add_compile_options(
 )
 
 add_link_options(
-	-Wall -O1 -g -std=c17
+	-Wall -g -std=c17
 	-mcpu=cortex-m3 -mthumb -mtune=cortex-m3
 	-fdata-sections -ffunction-sections	# reduces code size
 	# -specs=nosys.specs	# addresses 'Undefined reference to _sbrk'
