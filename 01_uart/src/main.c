@@ -6,32 +6,32 @@
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/usart.h>
 #include <libopencm3/cm3/nvic.h>
-#include <libopencm3/stm32/common/usart_common_all.h>
+// #include <libopencm3/stm32/common/usart_common_all.h>
 
 static QueueHandle_t queue_TX, queue_RX;
 
 static bool inline
-isLower(int32_t ch)
+isLower(char ch)
 {
 	return (ch >= 'a' && ch <= 'z');
 }
 
 static bool inline
-isUpper(int32_t ch)
+isUpper(char ch)
 {
 	return (ch >= 'A' && ch <= 'Z');
 }
 
-static bool inline
-toLower(int32_t ch)
+static char inline
+toLower(char ch)
 {
-	return ch + 32;
+	return ch + 0x20;
 }
 
-static bool inline
-toUpper(int32_t ch)
+static char inline
+toUpper(char ch)
 {
-	return ch - 32;
+	return ch - 0x20;
 }
 
 static void
@@ -62,7 +62,7 @@ init_uart(void)
 	queue_RX = xQueueCreate(256, sizeof(char));
 
 	nvic_enable_irq(NVIC_USART1_IRQ);
-	
+
 	gpio_set_mode(
 		GPIOA,
 		GPIO_MODE_OUTPUT_50_MHZ,
@@ -90,7 +90,7 @@ init_uart(void)
 void
 USART1_IRQHandler(void)
 {
-	int32_t ch;
+	char ch;
 	BaseType_t hpTask = pdFALSE;
 
 	while (((USART_SR(USART1) & USART_SR_RXNE) != 0)) {
@@ -100,26 +100,13 @@ USART1_IRQHandler(void)
 	}
 }
 
-static void
-task_transmit(void* args __attribute((unused)))
-{
-	int32_t ch;
-
-	for (;;) {
-		while (xQueueReceive(queue_TX, &ch, portMAX_DELAY) != pdPASS)
-			taskYIELD();
-		
-		while (!usart_get_flag(USART1, USART_SR_TXE))
-			taskYIELD();
-
-		usart_send(USART1, ch);
-	}
-}
-
-static int32_t
+/**
+ * Blocking read of keystrokes.
+*/
+static char
 read_char(void)
 {
-	int32_t ch;
+	char ch;
 
 	while (xQueueReceive(queue_RX, &ch, 0) != pdPASS)
 		taskYIELD();
@@ -129,7 +116,7 @@ read_char(void)
 }
 
 static void
-write_char(int32_t ch)
+write_char(char ch)
 {
 _again:
 	while (xQueueSend(queue_TX, &ch, 0) != pdPASS)
@@ -142,10 +129,28 @@ _again:
 }
 
 static void
+write_string(char* str)
+{
+	while (*str != '\0')
+		write_char(*str++);
+}
+
+static void
 task_main(void* args __attribute((unused)))
 {
+	bool isOut = true;
+
+	write_string("*********FunTerm*********\n");
+	write_string("\n>> ");
 	for (;;) {
-		int32_t ch = read_char();
+
+		char ch = read_char();
+
+		if (isOut) {
+			write_string("<< ");
+			isOut = false;
+		}
+
 
 		if (isLower(ch))
 			ch = toUpper(ch);
@@ -153,6 +158,26 @@ task_main(void* args __attribute((unused)))
 			ch = toLower(ch);
 		
 		write_char(ch);
+		if (ch == '\r') {
+			write_string("\n>> ");
+			isOut = true;
+		}
+	}
+}
+
+static void
+task_transmit(void* args __attribute((unused)))
+{
+	char ch;
+
+	for (;;) {
+		while (xQueueReceive(queue_TX, &ch, portMAX_DELAY) != pdPASS)
+			taskYIELD();
+		
+		while (!usart_get_flag(USART1, USART_SR_TXE))
+			taskYIELD();
+
+		usart_send(USART1, ch);
 	}
 }
 

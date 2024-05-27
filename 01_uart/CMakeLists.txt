@@ -30,20 +30,22 @@ add_compile_definitions(
 #-mapcs-frame -msoft-float
 # -fno-hosted -fno-builtin
 add_compile_options(
-	-Wall -O0 -g -std=c17
-	-mcpu=cortex-m3 -mthumb -mtune=cortex-m3 
+	-Wall -Os -std=gnu17
+	-mcpu=cortex-m3
+	# -mthumb
+	# -mtune=cortex-m3 
 	-fdata-sections -ffunction-sections
 	# -specs=nosys.specs
 	# -specs=nano.specs
+	# -mapcs-frame
+	# -msoft-float
+	# -fno-hosted
+	# -fno-builtin
 )
 
 add_link_options(
-	-Wall -g -std=c17
-	-mcpu=cortex-m3 -mthumb -mtune=cortex-m3
-	-fdata-sections -ffunction-sections	# reduces code size
-	# -specs=nosys.specs	# addresses 'Undefined reference to _sbrk'
-	# -specs=nano.specs	# used in conjunction with '-specs=nosys.specs'
-	
+	-mcpu=cortex-m3
+	-mthumb
 	"LINKER:--gc-sections"	# used in conjunction with '-fdata-sections -ffunction-sections'
 	"LINKER:-T,${CMAKE_SOURCE_DIR}/src/STM32F103XB_FLASH.ld"
 	"LINKER:-Map=map.log"
