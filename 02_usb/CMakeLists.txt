@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(UART VERSION 1.0)
+project(USBCDC VERSION 1.0)
 
 
 enable_language(ASM C)
@@ -15,7 +15,7 @@ set(hal_path			${CMAKE_SOURCE_DIR}/../libopencm3)
 set(hal_src_stm32		${hal_path}/lib/stm32)
 set(hal_src_stm32_cmn 	${hal_src_stm32}/common)
 set(hal_src_stm32_f1 	${hal_src_stm32}/f1)
-set(hal_src_cm3			${hal_path}/lib/cm3)
+set(hal_src_usb			${hal_path}/lib/usb)
 
 #The paths to the FreeRTOS
 set(rtos_path		${CMAKE_SOURCE_DIR}/../FreeRTOS/FreeRTOS)

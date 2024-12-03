@@ -181,6 +181,17 @@ task_transmit(void* args __attribute((unused)))
 	}
 }
 
+static void
+task_blink(void* args __attribute((unused)))
+{
+	char ch;
+
+	for (;;) {
+		vTaskDelay(pdMS_TO_TICKS(2000));
+		gpio_toggle(GPIOC, GPIO13);
+	}
+}
+
 int
 main(void)
 {
@@ -192,7 +203,8 @@ main(void)
 
 	xTaskCreate(task_main, "MAIN", 100, NULL, configMAX_PRIORITIES - 1, NULL);
 	xTaskCreate(task_transmit, "TRANSMIT", 100, NULL, configMAX_PRIORITIES - 1, NULL);
-	
+	xTaskCreate(task_blink, "BLINK", 100, NULL, configMAX_PRIORITIES - 1, NULL);
+
 	vTaskStartScheduler();
 	
 	for (;;);
