@@ -11,8 +11,8 @@
 #include <libopencm3/usb/cdc.h>
 
 static volatile bool isInitialized = false;
-static QueueHandle_t usb_txq;
-static QueueHandle_t usb_rxq;
+static QueueHandle_t usb_txq;	// FreeRTOS tx buffer to communicate to the USB stream
+static QueueHandle_t usb_rxq;	// FreeRTOS rx buffer to communicate from the USB stream
 
 static const struct usb_device_descriptor dev = {};
 static const struct usb_config_descriptor config = {};
@@ -73,6 +73,71 @@ cdcacm_data_rx_cb(usbd_device* usbd_dev, uint8_t ep __attribute__((unused)))
 	}
 }
 
+/**
+ * A callback function used to handle specislized messages.
+ * This driver reacts to two req->bRequest message types.
+ * @return '1' on successfull handling. '0' otherwise.
+ */
+static int32_t
+cdcacm_control_request(
+	usbd_device* sbd_dev __attribute((unused)),
+	struct usb_setup_data* req,
+	uint8_t** buf __attribute((unused)),
+	uint16_t* len,
+	FnComplete complete __attribute__((unused)))
+{
+	switch (req->bRequest) {
+		case USB_CDC_REQ_SET_CONTROL_LINE_STATE:
+		/* The linux cdc_acm driver requires this to be implemented
+		 * even though it's optional in the CDC spec, and we don't
+		 * advertise it in the ACM functinoal description. */
+		return (1);
+
+		case USB_CDC_REQ_SET_LINE_CODING:
+			if (*len < sizeof(struct usb_cdc_line_coding)) {
+				return (0);
+			}
+		return (1);
+	}
+
+	return (0);
+}
+
+/**
+ * This callback function is invoked by the USB infrastructure when data 
+ * has been sent over the bus to the STM32 MCU.
+ */
+static void
+cdcacm_data_rx_cb(usbd_device* usbd_dev, uint8_t ep __attribute__((unused)))
+{
+	// How much queue capacity left?
+	int32_t rx_avail = uxQueueSpacesAvailable(usb_rxq);
+	char buf[64];	// rx buffer.
+	int32_t len;
+
+	if (rx_avail <= 0)
+		return;	// No space available to RX.
+
+	// Bytes to read
+	len = sizeof buf < rx_avail ? sizeof buf : rx_avail;
+
+	// Read what we can, leave the rest.
+	for (int32_t x = 0; x < len; ++x) {
+		// Send data to the rx queue
+		xQueueSend(usb_rxq, &buf[x], 0);
+	}
+}
+
+/**
+ * Called by the Host system upon USB peripheral connection.
+ * This callback function configures/reconfigures the USB CDC device. Its signature
+ * must match with the one defined in libopencm3/include/libopencm3/usb/usbd.h:
+ * 
+ * typedef void (*usbd_set_config_callback)(usbd_device *usbd_dev, uint16_t wValue);
+ * 
+ * Upon return, the 'isInitialized' global variable is set to inform that FreeRTOS task
+ * can know the ready state of the USB infrastructure.
+ */
 static void
 cdcacm_set_config(usbd_device* usbd_dev, uint16_t wValue __attribute__((unused)))
 {
@@ -84,27 +149,29 @@ cdcacm_set_config(usbd_device* usbd_dev, uint16_t wValue __attribute__((unused))
 	isInitialized = true;
 }
 
+/** Sends queued bytes of data to the USB Host. */
 static void
 usb_task(void* arg)
 {
 	usbd_device* udev = (usbd_device*)arg;
 	char txbuf[32];
-	uint8_t txlen = 0;
+	int32_t txlen = 0;
 
 	for (;;) {
 		
+		/* Called frequently enough that the USB link is maintained by the Host. */
 		usbd_poll(udev);
 		if (!isInitialized)
 			continue;
 		
 		while (txlen < sizeof txbuf && xQueueReceive(usb_txq, &txbuf[txlen], 0) == pdPASS)
-			++txlen;
+			++txlen;	// Count the number of bytes to be sent
 		
 		if (txlen > 0) {
 			if (usbd_ep_write_packet(udev, 0x82, txbuf, txlen) != 0)
-				txlen = 0;
+				txlen = 0;	// Reset if data have been sent successfully
 		} else {
-			taskYIELD();
+			taskYIELD();	// No data to send. Give up the CPU.
 		}
 	}
 }
@@ -118,6 +185,9 @@ usb_start(void)
 	usb_txq = xQueueCreate(128, sizeof(char));
 	usb_rxq = xQueueCreate(128, sizeof(char));
 
+	/* Since enabling the USB peripheral automatically takes over
+	 * the GPIOs PA11 and PA12, all we have to do is enable the GPIO
+	 * and USB clocks. */
 	rcc_periph_clock_enable(RCC_GPIOA);
 	rcc_periph_clock_enable(RCC_USB);
 
@@ -127,5 +197,7 @@ usb_start(void)
 					usbd_control_buffer, sizeof(usbd_control_buffer));
 	
 	usbd_register_set_config_callback(udev, cdcacm_set_config);
+
+	/* Create the FreeRTOS task to service the USB events. */
 	xTaskCreate(usb_task, "USB", 200, udev, configMAX_PRIORITIES - 1, NULL);
 }

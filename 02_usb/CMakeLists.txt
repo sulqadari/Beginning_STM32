@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(USBCDC VERSION 1.0)
+project(USB_CDC VERSION 1.0)
 
 
 enable_language(ASM C)
